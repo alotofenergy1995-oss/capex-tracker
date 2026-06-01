@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>빅테크 CapEx / FCF 트래커</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #ffffff;
+    --bg2: #f7f7f5;
+    --bg3: #efeeea;
+    --text: #1a1a1a;
+    --text2: #6b6b6b;
+    --text3: #999;
+    --border: rgba(0,0,0,0.12);
+    --border2: rgba(0,0,0,0.2);
+    --success: #1a7f64;
+    --danger: #c0392b;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1f1f1f;
+      --bg2: #2a2a2a;
+      --bg3: #333;
+      --text: #e8e8e8;
+      --text2: #999;
+      --text3: #666;
+      --border: rgba(255,255,255,0.1);
+      --border2: rgba(255,255,255,0.2);
+      --success: #5dcaa5;
+      --danger: #e07070;
+    }
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg);
+    padding: 20px 16px 32px;
+    min-height: 100vh;
+  }
+  .tab-bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab-btn {
+    padding: 6px 14px; font-size: 12px; border-radius: var(--radius);
+    cursor: pointer; border: 0.5px solid var(--border2);
+    background: transparent; color: var(--text2);
+    font-family: inherit; transition: background 0.12s;
+  }
+  .tab-btn.active { background: var(--bg2); color: var(--text); font-weight: 500; border-color: var(--border2); }
+  .tab-btn:hover { background: var(--bg2); }
+  .top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .action-btns { display: flex; gap: 6px; align-items: center; }
+  .btn {
+    padding: 5px 12px; font-size: 12px; border-radius: var(--radius);
+    cursor: pointer; border: 0.5px solid var(--border2);
+    background: transparent; color: var(--text);
+    font-family: inherit; display: flex; align-items: center; gap: 4px;
+    transition: background 0.12s;
+  }
+  .btn:hover { background: var(--bg2); }
+  .btn:active { transform: scale(0.97); }
+  .btn-danger { color: var(--danger); }
+  .sync-status { font-size: 11px; color: var(--text3); }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .kcard { background: var(--bg2); border-radius: var(--radius); padding: 12px 14px; }
+  .kcard .label { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+  .kcard .value { font-size: 18px; font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; font-size: 12px; color: var(--text2); }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-box { width: 10px; height: 10px; border-radius: 2px; }
+  .legend-line { width: 20px; height: 2.5px; display: inline-block; }
+  .chart-wrap { position: relative; width: 100%; height: 300px; margin-bottom: 16px; }
+  .form-panel {
+    display: none; background: var(--bg2); border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border); padding: 14px; margin-bottom: 14px;
+  }
+  .form-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 10px; }
+  .form-group label { font-size: 11px; color: var(--text2); display: block; margin-bottom: 3px; }
+  input, select {
+    width: 100%; font-size: 12px; padding: 7px 9px;
+    border: 0.5px solid var(--border2); border-radius: var(--radius);
+    background: var(--bg); color: var(--text); font-family: inherit;
+    outline: none;
+  }
+  input:focus, select:focus { border-color: #3266ad; box-shadow: 0 0 0 2px rgba(50,102,173,0.15); }
+  .form-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .form-status { font-size: 11px; color: var(--text2); }
+  .table-section { background: var(--bg2); border-radius: var(--radius-lg); border: 0.5px solid var(--border); padding: 12px 14px; margin-bottom: 8px; }
+  .table-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .table-header p { font-size: 13px; font-weight: 500; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; font-size: 12px; border-collapse: collapse; table-layout: fixed; }
+  th { text-align: left; padding: 5px 6px; border-bottom: 0.5px solid var(--border); color: var(--text2); font-weight: 400; }
+  td { padding: 5px 6px; border-bottom: 0.5px solid var(--border); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; }
+  .footer-note { font-size: 11px; color: var(--text3); margin-top: 6px; line-height: 1.5; }
+  .success { color: var(--success); }
+  .danger { color: var(--danger); }
+  .claude-btn { background: #3266ad; color: #fff; border-color: #3266ad; }
+  .claude-btn:hover { background: #2558a0; }
+  .claude-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" data-tab="ALL">전체 합산</button>
+    <button class="tab-btn" data-tab="GOOGL">Google</button>
+    <button class="tab-btn" data-tab="META">Meta</button>
+    <button class="tab-btn" data-tab="AMZN">Amazon</button>
+    <button class="tab-btn" data-tab="MSFT">Microsoft</button>
+  </div>
+  <div class="action-btns">
+    <span class="sync-status" id="syncStatus"></span>
+    <button class="btn" id="addBtn"><i class="ti ti-plus"></i> 입력</button>
+  </div>
+</div>
+
+<div class="summary-grid" id="summaryCards"></div>
+<div class="legend" id="legend"></div>
+<div class="chart-wrap">
+  <canvas id="mainChart" role="img" aria-label="분기별 CapEx 및 FCF 차트">분기별 CapEx(막대)와 FCF(선) 데이터</canvas>
+</div>
+
+<div class="form-panel" id="formPanel">
+  <div class="form-title">데이터 추가 <span style="font-size:11px;color:var(--text2);font-weight:400;">— 로컬 저장 (이 브라우저에만 적용)</span></div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>기업</label>
+      <select id="iCompany">
+        <option value="GOOGL">Google</option><option value="META">Meta</option>
+        <option value="AMZN">Amazon</option><option value="MSFT">Microsoft</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>연도</label>
+      <input type="number" id="iYear" value="2026" min="2024" max="2030">
+    </div>
+    <div class="form-group">
+      <label>분기</label>
+      <select id="iQuarter"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
+    </div>
+    <div class="form-group">
+      <label>CapEx ($B)</label>
+      <input type="text" id="iCapex" placeholder="예: 35.7 또는 35,700M">
+    </div>
+    <div class="form-group">
+      <label>FCF ($B)</label>
+      <input type="text" id="iFcf" placeholder="예: 18.4 또는 -5.2">
+    </div>
+  </div>
+  <div class="form-actions">
+    <button class="btn claude-btn" id="claudeBtn"><i class="ti ti-sparkles"></i> Claude 정규화 저장</button>
+    <button class="btn" id="directBtn">직접 저장</button>
+    <span class="form-status" id="formStatus"></span>
+  </div>
+</div>
+
+<div class="table-section">
+  <div class="table-header">
+    <p>데이터 테이블</p>
+    <button class="btn btn-danger" id="resetBtn">기본값 복원</button>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th style="width:80px;">기업</th>
+        <th style="width:72px;">기간</th>
+        <th style="text-align:right;">CapEx</th>
+        <th style="text-align:right;">FCF</th>
+        <th style="text-align:right;">FCF/CapEx</th>
+        <th style="width:44px;"></th>
+      </tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<p class="footer-note">FCF = 분기 OCF − 분기 CapEx. Google·Meta·Microsoft: 분기 공시 직접 적용. Amazon: SEC 10-Q 분기 OCF 역산. * 표시는 YTD 차분 추정.</p>
+
+<script>
+const SK = 'bigtech_capex_fcf_notion_v1';
+const COLORS = { GOOGL:'#3266ad', META:'#534AB7', AMZN:'#BA7517', MSFT:'#1a7f64' };
+const NAMES = { GOOGL:'Google', META:'Meta', AMZN:'Amazon', MSFT:'Microsoft' };
+const COS = ['GOOGL','META','AMZN','MSFT'];
+const FCF_COLOR = '#2c2c2a';
+
+const DEFAULT_DATA = [
+  {c:'GOOGL',y:2024,q:'Q1',capex:12.00,fcf:13.45},
+  {c:'GOOGL',y:2024,q:'Q2',capex:13.19,fcf:13.45},
+  {c:'GOOGL',y:2024,q:'Q3',capex:13.06,fcf:17.64},
+  {c:'GOOGL',y:2024,q:'Q4',capex:14.28,fcf:24.84},
+  {c:'GOOGL',y:2025,q:'Q1',capex:17.20,fcf:18.95},
+  {c:'GOOGL',y:2025,q:'Q2',capex:22.45,fcf:5.30},
+  {c:'GOOGL',y:2025,q:'Q3',capex:23.95,fcf:24.46},
+  {c:'GOOGL',y:2025,q:'Q4',capex:27.85,fcf:24.55},
+  {c:'GOOGL',y:2026,q:'Q1',capex:35.67,fcf:10.12},
+  {c:'META',y:2024,q:'Q1',capex:6.72,fcf:12.53},
+  {c:'META',y:2024,q:'Q2',capex:8.47,fcf:10.90},
+  {c:'META',y:2024,q:'Q3',capex:9.23,fcf:15.52},
+  {c:'META',y:2024,q:'Q4',capex:14.84,fcf:13.15},
+  {c:'META',y:2025,q:'Q1',capex:13.70,fcf:10.33},
+  {c:'META',y:2025,q:'Q2',capex:17.01,fcf:8.55},
+  {c:'META',y:2025,q:'Q3',capex:19.38,fcf:10.62},
+  {c:'META',y:2025,q:'Q4',capex:19.60,fcf:16.61},
+  {c:'META',y:2026,q:'Q1',capex:19.84,fcf:12.40},
+  {c:'AMZN',y:2024,q:'Q1',capex:14.93,fcf:4.07},
+  {c:'AMZN',y:2024,q:'Q2',capex:17.62,fcf:4.58},
+  {c:'AMZN',y:2024,q:'Q3',capex:22.62,fcf:3.38},
+  {c:'AMZN',y:2024,q:'Q4',capex:27.83,fcf:20.87},
+  {c:'AMZN',y:2025,q:'Q1',capex:25.02,fcf:-8.02},
+  {c:'AMZN',y:2025,q:'Q2',capex:32.18,fcf:0.42},
+  {c:'AMZN',y:2025,q:'Q3',capex:35.10,fcf:0.40},
+  {c:'AMZN',y:2025,q:'Q4',capex:39.50,fcf:14.90},
+  {c:'AMZN',y:2026,q:'Q1',capex:44.20,fcf:-18.20},
+  {c:'MSFT',y:2024,q:'Q1',capex:11.49,fcf:20.67},
+  {c:'MSFT',y:2024,q:'Q2',capex:14.04,fcf:17.82},
+  {c:'MSFT',y:2024,q:'Q3',capex:15.80,fcf:17.25},
+  {c:'MSFT',y:2024,q:'Q4',capex:16.74,fcf:12.44},
+  {c:'MSFT',y:2025,q:'Q1',capex:20.00,fcf:27.01},
+  {c:'MSFT',y:2025,q:'Q2',capex:22.60,fcf:16.38},
+  {c:'MSFT',y:2025,q:'Q3',capex:21.40,fcf:25.60},
+  {c:'MSFT',y:2025,q:'Q4',capex:20.40,fcf:22.35},
+  {c:'MSFT',y:2026,q:'Q1',capex:35.29,fcf:20.72},
+];
+
+function load() {
+  try { const r = localStorage.getItem(SK); if (r) return JSON.parse(r); } catch(e) {}
+  return JSON.parse(JSON.stringify(DEFAULT_DATA));
+}
+function save(d) { try { localStorage.setItem(SK, JSON.stringify(d)); } catch(e) {} }
+
+let DATA = load();
+let chart = null;
+let activeTab = 'ALL';
+
+function pKey(r) { return r.y + '-' + r.q; }
+function pLabel(r) { return r.y + ' ' + r.q; }
+function getAllPeriods() {
+  return [...new Set(DATA.map(pKey))].sort().map(k => {
+    const r = DATA.find(d => pKey(d) === k); return pLabel(r);
+  });
+}
+function fmtV(v) { return (v < 0 ? '-$' + Math.abs(v).toFixed(1) : '$' + v.toFixed(1)) + 'B'; }
+
+function renderSummary() {
+  const el = document.getElementById('summaryCards');
+  if (activeTab === 'ALL') {
+    const lp = getAllPeriods().slice(-1)[0];
+    const lr = DATA.filter(r => pLabel(r) === lp);
+    const tc = lr.reduce((s,r) => s+r.capex, 0);
+    const tf = lr.reduce((s,r) => s+r.fcf, 0);
+    const ac = DATA.reduce((s,r) => s+r.capex, 0);
+    const af = DATA.reduce((s,r) => s+r.fcf, 0);
+    el.innerHTML = `
+      <div class="kcard"><div class="label">최신분기 CapEx 합</div><div class="value">$${tc.toFixed(1)}B</div></div>
+      <div class="kcard"><div class="label">최신분기 FCF 합</div><div class="value ${tf>=0?'success':'danger'}">${tf<0?'-$'+Math.abs(tf).toFixed(1):'$'+tf.toFixed(1)}B</div></div>
+      <div class="kcard"><div class="label">누적 CapEx</div><div class="value">$${ac.toFixed(0)}B</div></div>
+      <div class="kcard"><div class="label">누적 FCF</div><div class="value ${af>=0?'success':'danger'}">${af<0?'-$'+Math.abs(af).toFixed(0):'$'+af.toFixed(0)}B</div></div>`;
+  } else {
+    const rows = DATA.filter(r => r.c === activeTab).sort((a,b) => pKey(a).localeCompare(pKey(b)));
+    if (!rows.length) { el.innerHTML = ''; return; }
+    const lt = rows[rows.length-1];
+    const tf = rows.reduce((s,r) => s+r.fcf, 0);
+    const ratio = lt.capex > 0 ? (lt.fcf/lt.capex).toFixed(2) : 'N/A';
+    el.innerHTML = `
+      <div class="kcard"><div class="label">최신 CapEx</div><div class="value">$${lt.capex.toFixed(2)}B</div></div>
+      <div class="kcard"><div class="label">최신 FCF</div><div class="value ${lt.fcf>=0?'success':'danger'}">${lt.fcf<0?'-$'+Math.abs(lt.fcf).toFixed(2):'$'+lt.fcf.toFixed(2)}B</div></div>
+      <div class="kcard"><div class="label">FCF/CapEx (최신)</div><div class="value">${ratio}x</div></div>
+      <div class="kcard"><div class="label">누적 FCF</div><div class="value ${tf>=0?'success':'danger'}">${tf<0?'-$'+Math.abs(tf).toFixed(1):'$'+tf.toFixed(1)}B</div></div>`;
+  }
+}
+
+function renderChart() {
+  if (chart) { chart.destroy(); chart = null; }
+  const ctx = document.getElementById('mainChart');
+  const lg = document.getElementById('legend');
+
+  if (activeTab === 'ALL') {
+    const periods = getAllPeriods();
+    const capexDs = COS.map(c => ({
+      type:'bar', label: NAMES[c]+' CapEx',
+      data: periods.map(p => { const r=DATA.find(d=>pLabel(d)===p&&d.c===c); return r?parseFloat(r.capex.toFixed(2)):null; }),
+      backgroundColor: COLORS[c]+'99', borderColor: COLORS[c], borderWidth:1,
+      stack:'capex', yAxisID:'y', skipNull:true,
+    }));
+    const fcfDs = {
+      type:'line', label:'FCF 합계',
+      data: periods.map(p => {
+        const rows = DATA.filter(d => pLabel(d)===p);
+        if (!rows.length) return null;
+        return parseFloat(rows.reduce((s,r)=>s+r.fcf,0).toFixed(2));
+      }),
+      borderColor: FCF_COLOR, backgroundColor:'transparent', borderWidth:2.5,
+      pointRadius:5, pointBackgroundColor:'#fff', pointBorderColor:FCF_COLOR, pointBorderWidth:2,
+      tension:0.3, yAxisID:'y2', spanGaps:true,
+    };
+    chart = new Chart(ctx, {
+      data: { labels:periods, datasets:[...capexDs, fcfDs] },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{
+          x:{ stacked:true, grid:{color:'rgba(128,128,128,0.08)'}, ticks:{font:{size:11},autoSkip:false,maxRotation:45} },
+          y:{ stacked:true, position:'left', grid:{color:'rgba(128,128,128,0.08)'}, ticks:{font:{size:11},callback:v=>fmtV(v)}, title:{display:true,text:'CapEx ($B)',font:{size:10}} },
+          y2:{ position:'right', grid:{drawOnChartArea:false}, ticks:{font:{size:11},callback:v=>fmtV(v)}, title:{display:true,text:'FCF 합계 ($B)',font:{size:10}} }
+        }
+      }
+    });
+    lg.innerHTML =
+      COS.map(c=>`<span class="legend-item"><span class="legend-box" style="background:${COLORS[c]};opacity:.8;"></span>${NAMES[c]} CapEx</span>`).join('') +
+      `<span class="legend-item"><span class="legend-line" style="background:${FCF_COLOR};"></span>FCF 합계 (우축)</span>`;
+  } else {
+    const c = activeTab;
+    const rows = DATA.filter(r => r.c===c).sort((a,b)=>pKey(a).localeCompare(pKey(b)));
+    chart = new Chart(ctx, {
+      data: { labels:rows.map(pLabel), datasets:[
+        { type:'bar', label:'CapEx', data:rows.map(r=>parseFloat(r.capex.toFixed(2))),
+          backgroundColor:COLORS[c]+'88', borderColor:COLORS[c], borderWidth:1.5, yAxisID:'y' },
+        { type:'line', label:'FCF', data:rows.map(r=>parseFloat(r.fcf.toFixed(2))),
+          borderColor:COLORS[c], backgroundColor:'transparent', borderWidth:2.5,
+          pointRadius:5, pointBackgroundColor:'#fff', pointBorderColor:COLORS[c], pointBorderWidth:2,
+          tension:0.35, yAxisID:'y2' }
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false} },
+        scales:{
+          x:{ grid:{color:'rgba(128,128,128,0.08)'}, ticks:{font:{size:12},autoSkip:false} },
+          y:{ position:'left', grid:{color:'rgba(128,128,128,0.08)'}, ticks:{font:{size:12},callback:v=>fmtV(v)}, title:{display:true,text:'CapEx ($B)',font:{size:10}} },
+          y2:{ position:'right', grid:{drawOnChartArea:false}, ticks:{font:{size:12},callback:v=>fmtV(v)}, title:{display:true,text:'FCF ($B)',font:{size:10}} }
+        }
+      }
+    });
+    lg.innerHTML = `
+      <span class="legend-item"><span class="legend-box" style="background:${COLORS[c]};opacity:.8;"></span>CapEx (막대, 좌축)</span>
+      <span class="legend-item"><span class="legend-line" style="background:${COLORS[c]};"></span>FCF (선, 우축)</span>`;
+  }
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  const rows = (activeTab==='ALL' ? DATA : DATA.filter(r=>r.c===activeTab))
+    .sort((a,b)=>pKey(a).localeCompare(pKey(b))||a.c.localeCompare(b.c));
+  if (!rows.length) { tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;padding:14px;color:var(--text2);">데이터 없음</td></tr>`; return; }
+  tbody.innerHTML = rows.map((row,_,arr) => {
+    const ratio = row.capex>0 ? (row.fcf/row.capex).toFixed(2) : 'N/A';
+    const fc = row.fcf>=0 ? 'success' : 'danger';
+    const idx = DATA.indexOf(row);
+    const fcfStr = row.fcf<0 ? '-$'+Math.abs(row.fcf).toFixed(2) : '$'+row.fcf.toFixed(2);
+    return `<tr>
+      <td><span class="dot" style="background:${COLORS[row.c]};"></span>${NAMES[row.c]}</td>
+      <td>${pLabel(row)}</td>
+      <td style="text-align:right;">$${row.capex.toFixed(2)}B</td>
+      <td style="text-align:right;" class="${fc}">${fcfStr}B</td>
+      <td style="text-align:right;">${ratio}x</td>
+      <td style="text-align:right;"><button class="btn btn-danger" onclick="delRow(${idx})" style="padding:2px 6px;font-size:11px;">삭제</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderAll() { renderSummary(); renderChart(); renderTable(); }
+function delRow(i) { DATA.splice(i,1); save(DATA); renderAll(); }
+
+document.getElementById('tabBar').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn'); if (!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); activeTab = btn.dataset.tab; renderAll();
+});
+
+document.getElementById('addBtn').addEventListener('click', () => {
+  const p = document.getElementById('formPanel');
+  p.style.display = p.style.display==='none'||p.style.display==='' ? 'block' : 'none';
+});
+
+function parseNum(s) {
+  if (!s) return null;
+  s = s.toString().trim().replace(/,/g,'').replace(/\$/g,'');
+  let m=1;
+  if (/[Bb]$/.test(s)){m=1;s=s.slice(0,-1);}
+  else if (/[Mm]$/.test(s)){m=0.001;s=s.slice(0,-1);}
+  const n=parseFloat(s); return isNaN(n)?null:parseFloat((n*m).toFixed(3));
+}
+
+async function doSave(capex, fcf, msg) {
+  const c=document.getElementById('iCompany').value;
+  const y=parseInt(document.getElementById('iYear').value);
+  const q=document.getElementById('iQuarter').value;
+  const ei=DATA.findIndex(r=>r.c===c&&r.y===y&&r.q===q);
+  if (ei>=0){DATA[ei].capex=capex;DATA[ei].fcf=fcf;} else DATA.push({c,y,q,capex,fcf});
+  save(DATA);
+  document.getElementById('formStatus').textContent = msg;
+  document.getElementById('iCapex').value=''; document.getElementById('iFcf').value='';
+  renderAll();
+}
+
+document.getElementById('directBtn').addEventListener('click', async () => {
+  const cx=parseNum(document.getElementById('iCapex').value);
+  const fc=parseNum(document.getElementById('iFcf').value);
+  if (cx===null||fc===null){document.getElementById('formStatus').textContent='유효한 숫자를 입력하세요.';return;}
+  await doSave(cx, fc, '저장 완료');
+});
+
+document.getElementById('claudeBtn').addEventListener('click', async function() {
+  const cxR=document.getElementById('iCapex').value.trim();
+  const fcR=document.getElementById('iFcf').value.trim();
+  const st=document.getElementById('formStatus');
+  if (!cxR||!fcR){st.textContent='값을 입력하세요.';return;}
+  st.textContent='Claude 정규화 중...'; this.disabled=true;
+  try {
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:150,
+        system:'Financial data normalizer. Return ONLY JSON {"capex":number_in_billions,"fcf":number_in_billions}. Negative FCF allowed. No markdown.',
+        messages:[{role:'user',content:`CapEx: "${cxR}", FCF: "${fcR}"`}]})
+    });
+    const d=await resp.json();
+    const txt=d.content.filter(b=>b.type==='text').map(b=>b.text).join('').replace(/```json|```/g,'').trim();
+    const p=JSON.parse(txt);
+    await doSave(parseFloat(p.capex.toFixed(3)),parseFloat(p.fcf.toFixed(3)),'Claude 정규화 저장 완료');
+  } catch(e) {
+    const cx=parseNum(cxR),fc=parseNum(fcR);
+    if (cx!==null&&fc!==null) await doSave(cx,fc,'폴백 저장');
+    else st.textContent='오류. 값을 확인하세요.';
+  }
+  this.disabled=false;
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (confirm('기본값으로 복원할까요?')) {
+    DATA=JSON.parse(JSON.stringify(DEFAULT_DATA)); save(DATA); renderAll();
+  }
+});
+
+renderAll();
+</script>
+</body>
+</html>
