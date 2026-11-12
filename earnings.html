@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>어닝콜 정리</title>
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #ffffff; --ink: #1c1b19; --sub: #6b6860; --line: #dcd8cf;
+    --accent: #1f5f4a; --accent-ink: #ffffff; --ok: #1f6b45; --bad: #a3321f; --busy: #8a6410;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151614; --card: #1f211e; --ink: #ecebe6; --sub: #a09d94; --line: #363a35;
+      --accent: #6fc3a3; --accent-ink: #0f1a15; --ok: #7fd0a4; --bad: #ef8f7c; --busy: #e2bd6a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 4px 0 4px; letter-spacing: -0.01em; }
+  .lead { margin: 0 0 18px; color: var(--sub); font-size: 0.95rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  label { font-weight: 650; font-size: 0.98rem; }
+  .opt { font-weight: 400; color: var(--sub); font-size: 0.82rem; margin-left: 4px; }
+  input[type="text"], input[type="url"], textarea {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+  }
+  input:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  textarea { min-height: 180px; resize: vertical; line-height: 1.5; }
+  .status { margin: 8px 0 0; font-size: 0.88rem; color: var(--sub); overflow-wrap: anywhere; }
+  .status[data-kind="ok"] { color: var(--ok); }
+  .status[data-kind="bad"] { color: var(--bad); }
+  .status[data-kind="busy"] { color: var(--busy); }
+  button {
+    font: inherit; font-weight: 650; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); min-height: 48px; padding: 10px 16px; cursor: pointer;
+  }
+  button.small { min-height: 36px; padding: 4px 12px; font-size: 0.88rem; font-weight: 550; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .actions { display: grid; gap: 10px; margin-top: 16px; }
+  .actions .pair { display: grid; grid-template-columns: 1fr auto; gap: 10px; }
+  .msg { min-height: 1.5em; margin: 12px 2px 0; font-size: 0.95rem; overflow-wrap: anywhere; }
+  .msg[data-kind="ok"] { color: var(--ok); }
+  .msg[data-kind="bad"] { color: var(--bad); }
+  details { margin-top: 18px; color: var(--sub); font-size: 0.9rem; }
+  details summary { cursor: pointer; padding: 8px 0; }
+  details ol { margin: 4px 0 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>어닝콜 정리</h1>
+  <p class="lead">링크 2개와 어닝콜 내용을 넣고 보내면 Claude가 정리해서 노션 "어닝콜 정리" DB에 저장합니다.</p>
+
+  <section class="card">
+    <div class="row"><label for="ticker">티커 또는 회사명<span class="opt">선택</span></label></div>
+    <input id="ticker" type="text" autocomplete="off" autocapitalize="characters" placeholder="예: NVDA">
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <label for="report">실적 보고서 링크</label>
+      <button type="button" class="small" data-paste="report">붙여넣기</button>
+    </div>
+    <input id="report" type="url" inputmode="url" autocomplete="off" placeholder="https://files.quartr.com/...">
+    <p class="status" id="report-status" aria-live="polite">링크를 넣으면 자동으로 받아옵니다.</p>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <label for="slides">발표 슬라이드 링크</label>
+      <button type="button" class="small" data-paste="slides">붙여넣기</button>
+    </div>
+    <input id="slides" type="url" inputmode="url" autocomplete="off" placeholder="https://files.quartr.com/...">
+    <p class="status" id="slides-status" aria-live="polite">링크를 넣으면 자동으로 받아옵니다.</p>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <label for="transcript">어닝콜 내용</label>
+      <button type="button" class="small" data-paste="transcript">붙여넣기</button>
+    </div>
+    <textarea id="transcript" placeholder="어닝콜 트랜스크립트를 통째로 붙여넣으세요."></textarea>
+    <p class="status" id="transcript-status" aria-live="polite">비어 있음</p>
+  </section>
+
+  <div class="actions">
+    <button type="button" id="send" class="primary" disabled>Claude로 보내기</button>
+    <div class="pair">
+      <button type="button" id="copy" disabled>전체 텍스트 복사</button>
+      <button type="button" id="reset">비우기</button>
+    </div>
+  </div>
+  <p class="msg" id="msg" aria-live="polite"></p>
+
+  <details>
+    <summary>사용 방법과 보내기가 안 될 때</summary>
+    <ol>
+      <li>"Claude로 보내기"를 누르면 공유 창이 뜹니다. Claude를 고르고 전송하면 끝입니다.</li>
+      <li>공유 창에 Claude가 없거나 파일이 넘어가지 않으면 "전체 텍스트 복사"를 누른 뒤 Claude 채팅에 붙여넣고 전송하세요.</li>
+      <li>복사 방식은 글자만 넘어가므로 슬라이드의 차트와 그림은 빠집니다.</li>
+    </ol>
+  </details>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var NOTION_DB = 'https://app.notion.com/p/f66038b6809c4f4692188c4da478dcd1';
+  var NOTION_DS = 'collection://c31ecc5a-1948-4d14-b298-8a8c7d95fb97';
+  var PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build';
+
+  var slots = {
+    report: { label: '실적 보고서', file: 'report.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false },
+    slides: { label: '발표 슬라이드', file: 'slides.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false }
+  };
+  var seq = { report: 0, slides: 0 };
+  var timers = {};
+
+  function $(id) { return document.getElementById(id); }
+
+  var store = {
+    get: function (k) { try { return localStorage.getItem('ec:' + k) || ''; } catch (e) { return ''; } },
+    set: function (k, v) { try { localStorage.setItem('ec:' + k, v); } catch (e) { /* 저장 불가 환경은 무시 */ } }
+  };
+
+  function fmtSize(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB';
+  }
+
+  function setStatus(key, text, kind) {
+    var el = $(key + '-status');
+    el.textContent = text;
+    el.dataset.kind = kind || '';
+  }
+
+  function say(text, kind) {
+    var el = $('msg');
+    el.textContent = text;
+    el.dataset.kind = kind || '';
+  }
+
+  function transcriptText() { return $('transcript').value.trim(); }
+
+  function refresh() {
+    var busy = slots.report.busy || slots.slides.busy;
+    var extracting = slots.report.extracting || slots.slides.extracting;
+    var hasAny = !!(slots.report.blob || slots.slides.blob || transcriptText());
+    $('send').disabled = busy || !hasAny;
+    $('copy').disabled = busy || extracting || !hasAny;
+    $('copy').textContent = extracting ? '글자 추출 중...' : '전체 텍스트 복사';
+  }
+
+  /* ---------- PDF 받기 ---------- */
+
+  function loadSlot(key) {
+    var s = slots[key];
+    var url = $(key).value.trim();
+    if (url === s.url) { return; }   /* 같은 링크를 다시 받지 않는다 (입력 후 포커스 이동 시 중복 방지) */
+    s.url = url;
+    var my = ++seq[key];
+    store.set(key, url);
+    s.blob = null; s.text = null; s.size = 0; s.pages = 0; s.busy = false; s.extracting = false;
+
+    if (!url) { setStatus(key, '링크를 넣으면 자동으로 받아옵니다.'); refresh(); return; }
+
+    var u;
+    try { u = new URL(url); } catch (e) { u = null; }
+    if (!u || u.protocol !== 'https:') {
+      setStatus(key, 'https:// 로 시작하는 링크가 아닙니다.', 'bad'); refresh(); return;
+    }
+
+    s.busy = true;
+    setStatus(key, '받는 중...', 'busy');
+    refresh();
+
+    fetch(u.href, { credentials: 'omit' }).then(function (r) {
+      if (!r.ok) { throw new Error('서버가 ' + r.status + ' 오류를 돌려줬습니다.'); }
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      if (my !== seq[key]) { return; }
+      var head = String.fromCharCode.apply(null, new Uint8Array(buf.slice(0, 5)));
+      if (head !== '%PDF-') { throw new Error('PDF 파일이 아닙니다.'); }
+      s.blob = new Blob([buf], { type: 'application/pdf' });
+      s.size = buf.byteLength;
+      s.busy = false;
+      s.extracting = true;
+      setStatus(key, '받음 · ' + fmtSize(s.size) + ' · 글자 추출 중', 'ok');
+      refresh();
+      extract(key, buf.slice(0), my);
+    }).catch(function (e) {
+      if (my !== seq[key]) { return; }
+      s.busy = false;
+      s.url = null;   /* 실패한 링크는 다시 시도할 수 있게 둔다 */
+      var why = (e && e.name === 'TypeError')
+        ? '주소가 틀렸거나 사이트가 접근을 막았습니다.'
+        : (e && e.message) || '알 수 없는 오류';
+      setStatus(key, '받지 못했습니다: ' + why, 'bad');
+      refresh();
+    });
+  }
+
+  /* ---------- 글자 추출 (복사 방식용) ---------- */
+
+  var pdfjsPromise = null;
+  function loadPdfjs() {
+    if (!pdfjsPromise) {
+      pdfjsPromise = new Promise(function (resolve, reject) {
+        var sc = document.createElement('script');
+        sc.src = PDFJS + '/pdf.min.js';
+        sc.onload = function () {
+          if (!window.pdfjsLib) { pdfjsPromise = null; reject(new Error('pdf.js 없음')); return; }
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + '/pdf.worker.min.js';
+          resolve(window.pdfjsLib);
+        };
+        sc.onerror = function () { pdfjsPromise = null; reject(new Error('pdf.js 로드 실패')); };
+        document.head.appendChild(sc);
+      });
+    }
+    return pdfjsPromise;
+  }
+
+  function pageText(page) {
+    return page.getTextContent().then(function (tc) {
+      var lines = [], line = '', lastY = null;
+      tc.items.forEach(function (it) {
+        if (typeof it.str !== 'string') { return; }
+        var y = it.transform ? it.transform[5] : lastY;
+        if (lastY !== null && Math.abs(y - lastY) > 2 && line) { lines.push(line); line = ''; }
+        line += it.str;
+        lastY = y;
+        if (it.hasEOL) { lines.push(line); line = ''; lastY = null; }
+      });
+      if (line) { lines.push(line); }
+      return lines.map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
+                  .filter(function (l) { return l; }).join('\n');
+    });
+  }
+
+  function extract(key, buf, my) {
+    var s = slots[key];
+    loadPdfjs().then(function (lib) {
+      return lib.getDocument({ data: buf }).promise;
+    }).then(function (doc) {
+      var out = [];
+      var chain = Promise.resolve();
+      for (var i = 1; i <= doc.numPages; i++) {
+        (function (n) {
+          chain = chain.then(function () { return doc.getPage(n); })
+                       .then(pageText)
+                       .then(function (t) { out.push('[' + n + '쪽]\n' + t); });
+        })(i);
+      }
+      return chain.then(function () { return { text: out.join('\n\n'), pages: doc.numPages }; });
+    }).then(function (res) {
+      if (my !== seq[key]) { return; }
+      s.text = res.text; s.pages = res.pages; s.extracting = false;
+      var thin = res.text.replace(/\[\d+쪽\]/g, '').replace(/\s/g, '').length < res.pages * 40;
+      setStatus(key, '받음 · ' + fmtSize(s.size) + ' · ' + res.pages + '쪽' +
+        (thin ? ' · 글자가 거의 없는 PDF라 복사 방식에는 맞지 않습니다' : ''), 'ok');
+      refresh();
+    }).catch(function () {
+      if (my !== seq[key]) { return; }
+      s.text = null; s.extracting = false;
+      setStatus(key, '받음 · ' + fmtSize(s.size) + ' · 글자 추출 실패 (보내기는 가능, 복사에서는 빠짐)', 'ok');
+      refresh();
+    });
+  }
+
+  /* ---------- 요청서 ---------- */
+
+  function requestText(mode) {
+    var ticker = $('ticker').value.trim();
+    var have = [];
+    if (slots.report.blob) { have.push('실적 보고서'); }
+    if (slots.slides.blob) { have.push('발표 슬라이드'); }
+    if (transcriptText()) { have.push('어닝콜 트랜스크립트'); }
+    var where = mode === 'files' ? '함께 보낸 파일' : '이 글 아래에 붙인 자료';
+    return [
+      '[어닝콜 정리 요청]',
+      where + '을 아래 양식으로 정리해서 내 노션 "어닝콜 정리" DB에 새 페이지로 저장해줘.',
+      '확인 질문 없이 바로 진행하고, 끝나면 노션 페이지 링크와 빠진 자료만 짧게 알려줘.',
+      '',
+      '티커/회사: ' + (ticker || '자료에서 확인'),
+      '포함된 자료: ' + have.join(', '),
+      '',
+      '■ 저장 위치',
+      '- 노션 DB: 어닝콜 정리 (' + NOTION_DB + ')',
+      '- 데이터 소스: ' + NOTION_DS,
+      '- 속성: 제목 = "[티커] 회사명 FY00 Q0 어닝콜 정리", 티커, 분기(예: FY26 Q3), 실적 발표일, 한줄 결론',
+      '',
+      '■ 본문 양식 (한국어, 이 순서 그대로)',
+      '1. 한줄 결론',
+      '2. 실적 요약: 표로 작성. 항목 | 이번 분기 | 전년 동기 대비 | 전 분기 대비. 매출, 매출총이익률, 영업이익, 순이익, EPS, 잉여현금흐름 등 자료에 있는 항목',
+      '3. 부문별 실적',
+      '4. 가이던스: 다음 분기와 연간 수치, 직전 가이던스 대비 상향/유지/하향',
+      '5. 경영진 핵심 발언: 주제별로 묶기',
+      '6. Q&A 요지: 질문(애널리스트, 소속) → 답변 핵심',
+      '7. 전 분기 대비 달라진 점: 수치, 어조, 새로 나온 언급',
+      '8. 리스크와 다음 분기 체크포인트',
+      '9. 출처: 사용한 자료 목록',
+      '',
+      '■ 규칙',
+      '- 수치는 자료에 있는 것만 쓰고, 없으면 "자료에 없음"이라고 적는다. 추정하지 않는다.',
+      '- 각 수치와 발언 끝에 출처를 (보고서) (슬라이드) (콜) 로 표시한다.',
+      '- 자료끼리 수치가 다르면 둘 다 적고 차이를 표시한다.',
+      '- 빠진 자료가 있으면 있는 자료만으로 정리하고, 페이지 맨 위에 무엇이 빠졌는지 적는다.',
+      '- 이모티콘은 쓰지 않는다.'
+    ].join('\n');
+  }
+
+  function prefix() {
+    var t = $('ticker').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+    return t ? t + '_' : '';
+  }
+
+  /* ---------- 보내기 (파일 공유) ---------- */
+
+  function buildFiles() {
+    var p = prefix();
+    var files = [new File([requestText('files')], p + '00_request.txt', { type: 'text/plain' })];
+    ['report', 'slides'].forEach(function (key) {
+      var s = slots[key];
+      if (s.blob) { files.push(new File([s.blob], p + s.file, { type: 'application/pdf' })); }
+    });
+    var tr = transcriptText();
+    if (tr) { files.push(new File([tr], p + 'transcript.txt', { type: 'text/plain' })); }
+    return files;
+  }
+
+  function send() {
+    var files = buildFiles();
+    if (files.length < 2) { say('보낼 자료가 없습니다.', 'bad'); return; }
+    if (!navigator.share || !navigator.canShare || !navigator.canShare({ files: files })) {
+      say('이 브라우저는 파일 보내기를 지원하지 않습니다. "전체 텍스트 복사"를 쓰세요.', 'bad');
+      return;
+    }
+    navigator.share({
+      files: files,
+      title: '어닝콜 정리',
+      text: '첨부한 요청서(00_request.txt)대로 어닝콜 자료를 정리해서 노션에 저장해줘.'
+    }).then(function () {
+      say('공유 창으로 넘겼습니다. Claude에서 전송을 누르면 정리가 시작됩니다.', 'ok');
+    }).catch(function (e) {
+      if (e && e.name === 'AbortError') { say('보내기를 취소했습니다.'); }
+      else { say('보내기에 실패했습니다. "전체 텍스트 복사"를 쓰세요.', 'bad'); }
+    });
+  }
+
+  /* ---------- 복사 (글자 방식) ---------- */
+
+  function buildText() {
+    var parts = [requestText('text')];
+    ['report', 'slides'].forEach(function (key) {
+      var s = slots[key];
+      if (!s.blob) { return; }
+      parts.push('\n\n========== ' + s.label + ' (' + (s.pages || '?') + '쪽) ==========\n' +
+        (s.text || '(글자를 추출하지 못했습니다)'));
+    });
+    var tr = transcriptText();
+    if (tr) { parts.push('\n\n========== 어닝콜 트랜스크립트 ==========\n' + tr); }
+    return parts.join('');
+  }
+
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.top = '0'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function copyAll() {
+    var text = buildText();
+    var done = function () {
+      say('복사했습니다 (약 ' + text.length.toLocaleString('ko-KR') + '자). Claude 채팅에 붙여넣고 전송하세요.', 'ok');
+    };
+    var fail = function () { say('복사에 실패했습니다. 브라우저의 클립보드 권한을 확인하세요.', 'bad'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text) ? done() : fail(); });
+    } else {
+      legacyCopy(text) ? done() : fail();
+    }
+  }
+
+  /* ---------- 입력 처리 ---------- */
+
+  function updateTranscript() {
+    var v = $('transcript').value;
+    store.set('transcript', v);
+    var n = v.trim().length;
+    setStatus('transcript', n ? n.toLocaleString('ko-KR') + '자 입력됨' : '비어 있음', n ? 'ok' : '');
+    refresh();
+  }
+
+  function schedule(key) {
+    clearTimeout(timers[key]);
+    timers[key] = setTimeout(function () { loadSlot(key); }, 500);
+  }
+
+  ['report', 'slides'].forEach(function (key) {
+    $(key).addEventListener('input', function () { schedule(key); });
+    $(key).addEventListener('change', function () { clearTimeout(timers[key]); loadSlot(key); });
+  });
+  $('transcript').addEventListener('input', updateTranscript);
+  $('ticker').addEventListener('input', function () { store.set('ticker', $('ticker').value); });
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-paste]'), function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-paste');
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        say('이 브라우저는 붙여넣기 버튼을 지원하지 않습니다. 칸을 길게 눌러 붙여넣으세요.', 'bad');
+        $(key).focus();
+        return;
+      }
+      navigator.clipboard.readText().then(function (t) {
+        t = (t || '').trim();
+        if (!t) { say('클립보드가 비어 있습니다.', 'bad'); return; }
+        $(key).value = t;
+        say('');
+        if (key === 'transcript') { updateTranscript(); }
+        else { clearTimeout(timers[key]); loadSlot(key); }
+      }).catch(function () {
+        say('클립보드 접근이 거부됐습니다. 칸을 길게 눌러 붙여넣으세요.', 'bad');
+        $(key).focus();
+      });
+    });
+  });
+
+  $('send').addEventListener('click', send);
+  $('copy').addEventListener('click', copyAll);
+  $('reset').addEventListener('click', function () {
+    ['ticker', 'report', 'slides', 'transcript'].forEach(function (k) { $(k).value = ''; store.set(k, ''); });
+    loadSlot('report'); loadSlot('slides'); updateTranscript();
+    say('비웠습니다.');
+  });
+
+  /* ---------- 시작: 이전 입력 복원 ---------- */
+
+  ['ticker', 'report', 'slides', 'transcript'].forEach(function (k) { $(k).value = store.get(k); });
+  updateTranscript();
+  if ($('report').value) { loadSlot('report'); }
+  if ($('slides').value) { loadSlot('slides'); }
+  refresh();
+})();
+</script>
+</body>
+</html>
