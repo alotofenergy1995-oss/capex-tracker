@@ -64,7 +64,7 @@
 <body>
 <main>
   <h1>어닝콜 정리</h1>
-  <p class="lead">링크 2개와 어닝콜 내용을 넣고 보내면 Claude가 정리해서 노션 "어닝콜 정리" DB에 저장합니다.</p>
+  <p class="lead">자료 링크를 넣고 보내면 Claude가 정리해서 노션 "어닝콜 정리" DB에 저장합니다.</p>
 
   <section class="card">
     <div class="row"><label for="ticker">티커 또는 회사명<span class="opt">선택</span></label></div>
@@ -91,10 +91,19 @@
 
   <section class="card">
     <div class="row">
-      <label for="transcript">어닝콜 내용</label>
+      <label for="tpdf">어닝콜 링크 (PDF)</label>
+      <button type="button" class="small" data-paste="tpdf">붙여넣기</button>
+    </div>
+    <input id="tpdf" type="url" inputmode="url" autocomplete="off" placeholder="https://files.quartr.com/...">
+    <p class="status" id="tpdf-status" aria-live="polite">링크를 넣으면 자동으로 받아옵니다.</p>
+  </section>
+
+  <section class="card">
+    <div class="row">
+      <label for="transcript">어닝콜 내용 붙여넣기<span class="opt">PDF 링크가 없을 때</span></label>
       <button type="button" class="small" data-paste="transcript">붙여넣기</button>
     </div>
-    <textarea id="transcript" placeholder="어닝콜 트랜스크립트를 통째로 붙여넣으세요."></textarea>
+    <textarea id="transcript" placeholder="PDF 링크가 없으면 트랜스크립트 글을 여기에 붙여넣으세요."></textarea>
     <p class="status" id="transcript-status" aria-live="polite">비어 있음</p>
   </section>
 
@@ -127,9 +136,11 @@
 
   var slots = {
     report: { label: '실적 보고서', file: 'report.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false },
-    slides: { label: '발표 슬라이드', file: 'slides.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false }
+    slides: { label: '발표 슬라이드', file: 'slides.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false },
+    tpdf: { label: '어닝콜 트랜스크립트', file: 'transcript.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false }
   };
-  var seq = { report: 0, slides: 0 };
+  var KEYS = ['report', 'slides', 'tpdf'];
+  var seq = { report: 0, slides: 0, tpdf: 0 };
   var timers = {};
 
   function $(id) { return document.getElementById(id); }
@@ -158,9 +169,9 @@
   function transcriptText() { return $('transcript').value.trim(); }
 
   function refresh() {
-    var busy = slots.report.busy || slots.slides.busy;
-    var extracting = slots.report.extracting || slots.slides.extracting;
-    var hasAny = !!(slots.report.blob || slots.slides.blob || transcriptText());
+    var busy = KEYS.some(function (k) { return slots[k].busy; });
+    var extracting = KEYS.some(function (k) { return slots[k].extracting; });
+    var hasAny = KEYS.some(function (k) { return !!slots[k].blob; }) || !!transcriptText();
     $('send').disabled = busy || !hasAny;
     $('copy').disabled = busy || extracting || !hasAny;
     $('copy').textContent = extracting ? '글자 추출 중...' : '전체 텍스트 복사';
@@ -289,7 +300,7 @@
     var have = [];
     if (slots.report.blob) { have.push('실적 보고서'); }
     if (slots.slides.blob) { have.push('발표 슬라이드'); }
-    if (transcriptText()) { have.push('어닝콜 트랜스크립트'); }
+    if (slots.tpdf.blob || transcriptText()) { have.push('어닝콜 트랜스크립트'); }
     var where = mode === 'files' ? '함께 보낸 파일' : '이 글 아래에 붙인 자료';
     return [
       '[어닝콜 정리 요청]',
@@ -305,22 +316,36 @@
       '- 속성: 제목 = "[티커] 회사명 FY00 Q0 어닝콜 정리", 티커, 분기(예: FY26 Q3), 실적 발표일, 한줄 결론',
       '',
       '■ 본문 양식 (한국어, 이 순서 그대로)',
-      '1. 한줄 결론',
-      '2. 실적 요약: 표로 작성. 항목 | 이번 분기 | 전년 동기 대비 | 전 분기 대비. 매출, 매출총이익률, 영업이익, 순이익, EPS, 잉여현금흐름 등 자료에 있는 항목',
-      '3. 부문별 실적',
-      '4. 가이던스: 다음 분기와 연간 수치, 직전 가이던스 대비 상향/유지/하향',
-      '5. 경영진 핵심 발언: 주제별로 묶기',
-      '6. Q&A 요지: 질문(애널리스트, 소속) → 답변 핵심',
-      '7. 전 분기 대비 달라진 점: 수치, 어조, 새로 나온 언급',
-      '8. 리스크와 다음 분기 체크포인트',
-      '9. 출처: 사용한 자료 목록',
+      '',
+      '1. BM과 매출 segment',
+      '- 회사의 비즈니스 모델(무엇을 누구에게 팔아 어떻게 돈을 버는지)을 정리',
+      '- 매출 segment별 매출액, 비중, 성장률을 표로 정리',
+      '',
+      '2. 실적',
+      '- 표의 행: 매출액, Gross Margin, 영업이익, 영업이익률, EPS, OCF, FCF, CAPEX, 가이던스, 수주잔고(backlog)',
+      '- 표의 열: 이번 분기 | YoY | QoQ | 컨센 대비 | 해석',
+      '- 해석은 한 줄로 간단히',
+      '- 회사가 backlog 대신 bookings, RPO, order book 등 다른 표현을 쓰면 가장 유사한 항목을 찾아서 넣고 어떤 항목인지 표기. 애매하면 애매하다고 표시',
+      '- GAAP과 non-GAAP이 섞이면 구분해서 표시',
+      '- 트랜스크립트와 보도자료의 숫자가 다르면 보도자료 기준 우선',
+      '- 컨센서스가 자료에 없으면 웹 검색으로 확인해 출처를 적고, 확인이 안 되면 "확인 불가"로 표시',
+      '',
+      '3. 어닝콜',
+      '3-1. 핵심',
+      '- 가장 처음에 IR의 핵심 내용을 요약',
+      '3-2. 전문',
+      '- 주제별로 상세하게 정리',
+      '- 각 문단 첫 행에 내용을 한 번에 이해할 수 있는 문장형 제목을 작성',
+      '- 과도하게 압축하지 않고 수치, 고객사, 제품, 일정, 실적, 전망, 경영진 발언의 근거와 조건까지 최대한 보존',
+      '3-3. Q&A',
+      '- 별도로 구분해 질문과 답변을 빠짐없이 정리 (질문자와 소속 표기)',
       '',
       '■ 규칙',
-      '- 수치는 자료에 있는 것만 쓰고, 없으면 "자료에 없음"이라고 적는다. 추정하지 않는다.',
-      '- 각 수치와 발언 끝에 출처를 (보고서) (슬라이드) (콜) 로 표시한다.',
-      '- 자료끼리 수치가 다르면 둘 다 적고 차이를 표시한다.',
-      '- 빠진 자료가 있으면 있는 자료만으로 정리하고, 페이지 맨 위에 무엇이 빠졌는지 적는다.',
-      '- 이모티콘은 쓰지 않는다.'
+      '- 전체 문장을 ~음, ~함 체로 작성',
+      '- 불명확한 부분은 임의로 단정하지 않고 불확실성을 표시',
+      '- 수치는 자료에 있는 것만 쓰고 추정하지 않음. 자료에 없으면 "자료에 없음"으로 표시',
+      '- 빠진 자료가 있으면 있는 자료만으로 정리하고, 페이지 맨 위에 무엇이 빠졌는지 표시',
+      '- 이모티콘은 쓰지 않음'
     ].join('\n');
   }
 
@@ -334,7 +359,7 @@
   function buildFiles() {
     var p = prefix();
     var files = [new File([requestText('files')], p + '00_request.txt', { type: 'text/plain' })];
-    ['report', 'slides'].forEach(function (key) {
+    KEYS.forEach(function (key) {
       var s = slots[key];
       if (s.blob) { files.push(new File([s.blob], p + s.file, { type: 'application/pdf' })); }
     });
@@ -366,7 +391,7 @@
 
   function buildText() {
     var parts = [requestText('text')];
-    ['report', 'slides'].forEach(function (key) {
+    KEYS.forEach(function (key) {
       var s = slots[key];
       if (!s.blob) { return; }
       parts.push('\n\n========== ' + s.label + ' (' + (s.pages || '?') + '쪽) ==========\n' +
@@ -407,6 +432,11 @@
 
   function updateTranscript() {
     var v = $('transcript').value;
+    if (/^https:\/\/\S+$/.test(v.trim()) && !$('tpdf').value.trim()) {   /* 글 대신 링크를 붙여넣으면 링크 칸으로 옮긴다 */
+      $('tpdf').value = v.trim();
+      $('transcript').value = v = '';
+      loadSlot('tpdf');
+    }
     store.set('transcript', v);
     var n = v.trim().length;
     setStatus('transcript', n ? n.toLocaleString('ko-KR') + '자 입력됨' : '비어 있음', n ? 'ok' : '');
@@ -418,7 +448,7 @@
     timers[key] = setTimeout(function () { loadSlot(key); }, 500);
   }
 
-  ['report', 'slides'].forEach(function (key) {
+  KEYS.forEach(function (key) {
     $(key).addEventListener('input', function () { schedule(key); });
     $(key).addEventListener('change', function () { clearTimeout(timers[key]); loadSlot(key); });
   });
@@ -450,17 +480,16 @@
   $('send').addEventListener('click', send);
   $('copy').addEventListener('click', copyAll);
   $('reset').addEventListener('click', function () {
-    ['ticker', 'report', 'slides', 'transcript'].forEach(function (k) { $(k).value = ''; store.set(k, ''); });
-    loadSlot('report'); loadSlot('slides'); updateTranscript();
+    ['ticker', 'report', 'slides', 'tpdf', 'transcript'].forEach(function (k) { $(k).value = ''; store.set(k, ''); });
+    KEYS.forEach(function (k) { loadSlot(k); }); updateTranscript();
     say('비웠습니다.');
   });
 
   /* ---------- 시작: 이전 입력 복원 ---------- */
 
-  ['ticker', 'report', 'slides', 'transcript'].forEach(function (k) { $(k).value = store.get(k); });
+  ['ticker', 'report', 'slides', 'tpdf', 'transcript'].forEach(function (k) { $(k).value = store.get(k); });
   updateTranscript();
-  if ($('report').value) { loadSlot('report'); }
-  if ($('slides').value) { loadSlot('slides'); }
+  KEYS.forEach(function (k) { if ($(k).value) { loadSlot(k); } });
   refresh();
 })();
 </script>
