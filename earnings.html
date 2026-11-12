@@ -30,7 +30,7 @@
     padding: 14px; margin-bottom: 12px;
   }
   .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-  label { font-weight: 650; font-size: 0.98rem; }
+  label, .lbl { font-weight: 650; font-size: 0.98rem; }
   .opt { font-weight: 400; color: var(--sub); font-size: 0.82rem; margin-left: 4px; }
   input[type="text"], input[type="url"], textarea {
     width: 100%; font: inherit; color: var(--ink); background: var(--bg);
@@ -59,15 +59,17 @@
   details { margin-top: 18px; color: var(--sub); font-size: 0.9rem; }
   details summary { cursor: pointer; padding: 8px 0; }
   details ol { margin: 4px 0 0; padding-left: 20px; }
+  details.alt { margin: 0 0 12px; }
+  details.alt .card { margin-top: 8px; color: var(--ink); font-size: 1rem; }
 </style>
 </head>
 <body>
 <main>
   <h1>어닝콜 정리</h1>
-  <p class="lead">자료 링크를 넣고 보내면 Claude가 정리해서 노션 "어닝콜 정리" DB에 저장합니다.</p>
+  <p class="lead">보고서와 슬라이드 링크를 넣고 보내면 Claude가 Drive "어닝콜 보관함"의 어닝콜 전문과 합쳐 정리해서 노션에 저장합니다.</p>
 
   <section class="card">
-    <div class="row"><label for="ticker">티커 또는 회사명<span class="opt">선택</span></label></div>
+    <div class="row"><label for="ticker">티커<span class="opt">비워두면 자료에서 확인</span></label></div>
     <input id="ticker" type="text" autocomplete="off" autocapitalize="characters" placeholder="예: NVDA">
   </section>
 
@@ -90,6 +92,13 @@
   </section>
 
   <section class="card">
+    <div class="row"><span class="lbl">어닝콜 전문</span></div>
+    <p class="status">스톡나우에서 공유한 뒤 Drive "어닝콜 보관함"에 넣어두면 Claude가 찾아서 읽습니다.</p>
+  </section>
+
+  <details class="alt">
+    <summary>어닝콜 전문을 Drive 대신 여기에 직접 넣기</summary>
+  <section class="card">
     <div class="row">
       <label for="tpdf">어닝콜 링크 (PDF)</label>
       <button type="button" class="small" data-paste="tpdf">붙여넣기</button>
@@ -106,6 +115,7 @@
     <textarea id="transcript" placeholder="PDF 링크가 없으면 트랜스크립트 글을 여기에 붙여넣으세요."></textarea>
     <p class="status" id="transcript-status" aria-live="polite">비어 있음</p>
   </section>
+  </details>
 
   <div class="actions">
     <button type="button" id="send" class="primary" disabled>Claude로 보내기</button>
@@ -132,6 +142,7 @@
 
   var NOTION_DB = 'https://app.notion.com/p/f66038b6809c4f4692188c4da478dcd1';
   var NOTION_DS = 'collection://c31ecc5a-1948-4d14-b298-8a8c7d95fb97';
+  var DRIVE_FOLDER = 'https://drive.google.com/drive/folders/1NIC_-clqA7Paqs1NFa7fcs2GzsUU-lk-';
   var PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build';
 
   var slots = {
@@ -300,20 +311,30 @@
     var have = [];
     if (slots.report.blob) { have.push('실적 보고서'); }
     if (slots.slides.blob) { have.push('발표 슬라이드'); }
-    if (slots.tpdf.blob || transcriptText()) { have.push('어닝콜 트랜스크립트'); }
-    var where = mode === 'files' ? '함께 보낸 파일' : '이 글 아래에 붙인 자료';
+    var direct = !!(slots.tpdf.blob || transcriptText());
+    have.push(direct ? '어닝콜 트랜스크립트' : '어닝콜 전문(Google Drive에서 찾기)');
+    var drive = direct ? [] : [
+      '■ 어닝콜 전문 위치',
+      '- 내 Google Drive "어닝콜 보관함" 폴더: ' + DRIVE_FOLDER,
+      '- 이 회사와 분기에 해당하는 어닝콜 전문 PDF를 찾아서 읽기. 파일명은 "한국어 회사명 + 연도와 분기 + 어닝콜 전문" 형태이고, 같은 파일이 여러 개면 가장 최근 것을 사용',
+      '- 해당 파일이 없으면 보고서와 슬라이드만으로 정리하고, 페이지 맨 위에 어닝콜 전문이 빠졌다고 표시',
+      ''
+    ];
+    var where = mode === 'files' ? '함께 보낸 자료' : '이 글 아래에 붙인 자료';
     return [
       '[어닝콜 정리 요청]',
-      where + '을 아래 양식으로 정리해서 내 노션 "어닝콜 정리" DB에 새 페이지로 저장해줘.',
+      where + (direct ? '를' : '와 Google Drive에 있는 어닝콜 전문을 합쳐서') + ' 아래 양식으로 정리해서 내 노션 "어닝콜 정리" DB에 새 페이지로 저장해줘.',
       '확인 질문 없이 바로 진행하고, 끝나면 노션 페이지 링크와 빠진 자료만 짧게 알려줘.',
       '',
       '티커/회사: ' + (ticker || '자료에서 확인'),
       '포함된 자료: ' + have.join(', '),
-      '',
+      ''
+    ].concat(drive, [
       '■ 저장 위치',
       '- 노션 DB: 어닝콜 정리 (' + NOTION_DB + ')',
       '- 데이터 소스: ' + NOTION_DS,
-      '- 속성: 제목 = "[티커] 회사명 FY00 Q0 어닝콜 정리", 티커, 분기(예: FY26 Q3), 실적 발표일, 한줄 결론',
+      '- 페이지 제목: 티커(분기+연도) 형식. 예: NVDA(Q1FY26), NVDA(Q1CY27). 회사가 회계연도로 표기하면 FY, 달력연도로 표기하면 CY를 사용',
+      '- 그 외 속성: 티커, 분기(예: Q1FY26), 실적 발표일, 한줄 결론',
       '',
       '■ 본문 양식 (한국어, 이 순서 그대로)',
       '',
@@ -346,7 +367,7 @@
       '- 수치는 자료에 있는 것만 쓰고 추정하지 않음. 자료에 없으면 "자료에 없음"으로 표시',
       '- 빠진 자료가 있으면 있는 자료만으로 정리하고, 페이지 맨 위에 무엇이 빠졌는지 표시',
       '- 이모티콘은 쓰지 않음'
-    ].join('\n');
+    ]).join('\n');
   }
 
   function prefix() {
