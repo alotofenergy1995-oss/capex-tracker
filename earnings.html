@@ -119,8 +119,8 @@
 (function () {
   'use strict';
 
-  var NOTION_DB = 'https://app.notion.com/p/f66038b6809c4f4692188c4da478dcd1';
-  var NOTION_DS = 'collection://c31ecc5a-1948-4d14-b298-8a8c7d95fb97';
+  var NOTION_DS = 'collection://14dd31b7-25b2-811a-851a-000b697c299c';
+  var NOTION_RES = 'https://app.notion.com/p/416d31b725b28090aa07d6d6fee59c5a';
   var DRIVE_FOLDER = 'https://drive.google.com/drive/folders/1NIC_-clqA7Paqs1NFa7fcs2GzsUU-lk-';
   var PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build';
 
@@ -298,7 +298,7 @@
     var where = mode === 'files' ? '함께 보낸 자료' : '이 글 아래에 붙인 자료';
     return [
       '[어닝콜 정리 요청]',
-      where + '와 Google Drive에 있는 어닝콜 전문을 합쳐서 아래 양식으로 정리해서 내 노션 "어닝콜 정리" DB에 새 페이지로 저장해줘.',
+      where + '와 Google Drive에 있는 어닝콜 전문을 합쳐서 아래 양식으로 정리해서 내 노션 SECOND BRAIN OS의 "메모" DB에 새 노트로 저장하고, 영역·자원 "주식(어닝콜)"에 연결해줘.',
       '확인 질문 없이 바로 진행하고, 끝나면 노션 페이지 링크와 빠진 자료만 짧게 알려줘.',
       '',
       '티커/회사: ' + (ticker || '자료에서 확인'),
@@ -306,10 +306,10 @@
       ''
     ].concat(drive, [
       '■ 저장 위치',
-      '- 노션 DB: 어닝콜 정리 (' + NOTION_DB + ')',
-      '- 데이터 소스: ' + NOTION_DS,
+      '- 노션 "메모" DB 데이터 소스: ' + NOTION_DS,
+      '- 속성: 이름 = 페이지 제목, 분류 = 인포메이션, 상태 = 완료, 영역 · 자원 = 주식(어닝콜) (' + NOTION_RES + ')',
       '- 페이지 제목: 티커(분기+연도) 형식. 예: NVDA(Q1FY26), NVDA(Q1CY27). 회사가 회계연도로 표기하면 FY, 달력연도로 표기하면 CY를 사용',
-      '- 그 외 속성: 티커, 분기(예: Q1FY26), 실적 발표일, 한줄 결론',
+      '- 기존 노트(예: 같은 DB의 "SIMO(Q3CY26)", "블룸에너지 어닝콜")의 형식을 따르고, 본문 맨 끝에 "태그: #회사명 #영문회사명 #티커 #어닝콜 #EarningsCall #핵심제품·키워드 #테마_분야" 형태의 태그 줄을 붙임',
       '',
       '■ 본문 양식 (한국어, 이 순서 그대로)',
       '',
