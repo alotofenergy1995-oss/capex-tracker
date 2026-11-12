@@ -96,27 +96,6 @@
     <p class="status">스톡나우에서 공유한 뒤 Drive "어닝콜 보관함"에 넣어두면 Claude가 찾아서 읽습니다.</p>
   </section>
 
-  <details class="alt">
-    <summary>어닝콜 전문을 Drive 대신 여기에 직접 넣기</summary>
-  <section class="card">
-    <div class="row">
-      <label for="tpdf">어닝콜 링크 (PDF)</label>
-      <button type="button" class="small" data-paste="tpdf">붙여넣기</button>
-    </div>
-    <input id="tpdf" type="url" inputmode="url" autocomplete="off" placeholder="https://files.quartr.com/...">
-    <p class="status" id="tpdf-status" aria-live="polite">링크를 넣으면 자동으로 받아옵니다.</p>
-  </section>
-
-  <section class="card">
-    <div class="row">
-      <label for="transcript">어닝콜 내용 붙여넣기<span class="opt">PDF 링크가 없을 때</span></label>
-      <button type="button" class="small" data-paste="transcript">붙여넣기</button>
-    </div>
-    <textarea id="transcript" placeholder="PDF 링크가 없으면 트랜스크립트 글을 여기에 붙여넣으세요."></textarea>
-    <p class="status" id="transcript-status" aria-live="polite">비어 있음</p>
-  </section>
-  </details>
-
   <div class="actions">
     <button type="button" id="send" class="primary" disabled>Claude로 보내기</button>
     <div class="pair">
@@ -147,11 +126,10 @@
 
   var slots = {
     report: { label: '실적 보고서', file: 'report.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false },
-    slides: { label: '발표 슬라이드', file: 'slides.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false },
-    tpdf: { label: '어닝콜 트랜스크립트', file: 'transcript.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false }
+    slides: { label: '발표 슬라이드', file: 'slides.pdf', url: null, blob: null, text: null, size: 0, pages: 0, busy: false, extracting: false }
   };
-  var KEYS = ['report', 'slides', 'tpdf'];
-  var seq = { report: 0, slides: 0, tpdf: 0 };
+  var KEYS = ['report', 'slides'];
+  var seq = { report: 0, slides: 0 };
   var timers = {};
 
   function $(id) { return document.getElementById(id); }
@@ -177,12 +155,10 @@
     el.dataset.kind = kind || '';
   }
 
-  function transcriptText() { return $('transcript').value.trim(); }
-
   function refresh() {
     var busy = KEYS.some(function (k) { return slots[k].busy; });
     var extracting = KEYS.some(function (k) { return slots[k].extracting; });
-    var hasAny = KEYS.some(function (k) { return !!slots[k].blob; }) || !!transcriptText();
+    var hasAny = KEYS.some(function (k) { return !!slots[k].blob; });
     $('send').disabled = busy || !hasAny;
     $('copy').disabled = busy || extracting || !hasAny;
     $('copy').textContent = extracting ? '글자 추출 중...' : '전체 텍스트 복사';
@@ -311,9 +287,8 @@
     var have = [];
     if (slots.report.blob) { have.push('실적 보고서'); }
     if (slots.slides.blob) { have.push('발표 슬라이드'); }
-    var direct = !!(slots.tpdf.blob || transcriptText());
-    have.push(direct ? '어닝콜 트랜스크립트' : '어닝콜 전문(Google Drive에서 찾기)');
-    var drive = direct ? [] : [
+    have.push('어닝콜 전문(Google Drive에서 찾기)');
+    var drive = [
       '■ 어닝콜 전문 위치',
       '- 내 Google Drive "어닝콜 보관함" 폴더: ' + DRIVE_FOLDER,
       '- 이 회사와 분기에 해당하는 어닝콜 전문 PDF를 찾아서 읽기. 파일명은 "한국어 회사명 + 연도와 분기 + 어닝콜 전문" 형태이고, 같은 파일이 여러 개면 가장 최근 것을 사용',
@@ -323,7 +298,7 @@
     var where = mode === 'files' ? '함께 보낸 자료' : '이 글 아래에 붙인 자료';
     return [
       '[어닝콜 정리 요청]',
-      where + (direct ? '를' : '와 Google Drive에 있는 어닝콜 전문을 합쳐서') + ' 아래 양식으로 정리해서 내 노션 "어닝콜 정리" DB에 새 페이지로 저장해줘.',
+      where + '와 Google Drive에 있는 어닝콜 전문을 합쳐서 아래 양식으로 정리해서 내 노션 "어닝콜 정리" DB에 새 페이지로 저장해줘.',
       '확인 질문 없이 바로 진행하고, 끝나면 노션 페이지 링크와 빠진 자료만 짧게 알려줘.',
       '',
       '티커/회사: ' + (ticker || '자료에서 확인'),
@@ -384,8 +359,6 @@
       var s = slots[key];
       if (s.blob) { files.push(new File([s.blob], p + s.file, { type: 'application/pdf' })); }
     });
-    var tr = transcriptText();
-    if (tr) { files.push(new File([tr], p + 'transcript.txt', { type: 'text/plain' })); }
     return files;
   }
 
@@ -418,8 +391,6 @@
       parts.push('\n\n========== ' + s.label + ' (' + (s.pages || '?') + '쪽) ==========\n' +
         (s.text || '(글자를 추출하지 못했습니다)'));
     });
-    var tr = transcriptText();
-    if (tr) { parts.push('\n\n========== 어닝콜 트랜스크립트 ==========\n' + tr); }
     return parts.join('');
   }
 
@@ -451,19 +422,6 @@
 
   /* ---------- 입력 처리 ---------- */
 
-  function updateTranscript() {
-    var v = $('transcript').value;
-    if (/^https:\/\/\S+$/.test(v.trim()) && !$('tpdf').value.trim()) {   /* 글 대신 링크를 붙여넣으면 링크 칸으로 옮긴다 */
-      $('tpdf').value = v.trim();
-      $('transcript').value = v = '';
-      loadSlot('tpdf');
-    }
-    store.set('transcript', v);
-    var n = v.trim().length;
-    setStatus('transcript', n ? n.toLocaleString('ko-KR') + '자 입력됨' : '비어 있음', n ? 'ok' : '');
-    refresh();
-  }
-
   function schedule(key) {
     clearTimeout(timers[key]);
     timers[key] = setTimeout(function () { loadSlot(key); }, 500);
@@ -473,7 +431,6 @@
     $(key).addEventListener('input', function () { schedule(key); });
     $(key).addEventListener('change', function () { clearTimeout(timers[key]); loadSlot(key); });
   });
-  $('transcript').addEventListener('input', updateTranscript);
   $('ticker').addEventListener('input', function () { store.set('ticker', $('ticker').value); });
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-paste]'), function (btn) {
@@ -489,8 +446,7 @@
         if (!t) { say('클립보드가 비어 있습니다.', 'bad'); return; }
         $(key).value = t;
         say('');
-        if (key === 'transcript') { updateTranscript(); }
-        else { clearTimeout(timers[key]); loadSlot(key); }
+        clearTimeout(timers[key]); loadSlot(key);
       }).catch(function () {
         say('클립보드 접근이 거부됐습니다. 칸을 길게 눌러 붙여넣으세요.', 'bad');
         $(key).focus();
@@ -501,15 +457,15 @@
   $('send').addEventListener('click', send);
   $('copy').addEventListener('click', copyAll);
   $('reset').addEventListener('click', function () {
-    ['ticker', 'report', 'slides', 'tpdf', 'transcript'].forEach(function (k) { $(k).value = ''; store.set(k, ''); });
-    KEYS.forEach(function (k) { loadSlot(k); }); updateTranscript();
+    ['ticker', 'report', 'slides'].forEach(function (k) { $(k).value = ''; store.set(k, ''); });
+    KEYS.forEach(function (k) { loadSlot(k); });
     say('비웠습니다.');
   });
 
   /* ---------- 시작: 이전 입력 복원 ---------- */
 
-  ['ticker', 'report', 'slides', 'tpdf', 'transcript'].forEach(function (k) { $(k).value = store.get(k); });
-  updateTranscript();
+  store.set('tpdf', ''); store.set('transcript', '');   /* 예전 버전에서 남은 입력 지우기 */
+  ['ticker', 'report', 'slides'].forEach(function (k) { $(k).value = store.get(k); });
   KEYS.forEach(function (k) { if ($(k).value) { loadSlot(k); } });
   refresh();
 })();
